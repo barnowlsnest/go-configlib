@@ -19,8 +19,6 @@ import (
     "fmt"
 
     "github.com/barnowlsnest/go-configlib/pkg/configs"
-    "github.com/spf13/pflag"
-    "github.com/spf13/viper"
 )
 
 type AppConfig struct {
@@ -34,24 +32,63 @@ type AppConfig struct {
 }
 
 func main() {
-    v := viper.New()
-    fs := pflag.CommandLine
     cfg := &AppConfig{}
-
-    // Register pflags, defaults, and env bindings.
-    if err := configs.Register(v, fs, cfg); err != nil {
-        panic(err)
-    }
-
-    pflag.Parse()
-    _ = v.BindPFlags(fs)
-
-    // Load resolved values into the struct.
-    if err := configs.Load(v, cfg); err != nil {
+    v, err := configs.Resolve(cfg)
+    if err != nil {
         panic(err)
     }
 
     fmt.Printf("%+v\n", cfg)
+    fmt.Println("host from viper:", v.GetString("host"))
+}
+```
+
+`Resolve` creates a viper instance and FlagSet, registers flags + defaults + env bindings, parses CLI args, and loads resolved values into the struct — all in one call.
+
+## Resolution Order
+
+Values are resolved with the following priority (highest first, per viper's precedence):
+
+1. **CLI flags** (`--key=value`)
+2. **Environment variables** (`KEY`)
+3. **Defaults** from the `default` struct tag
+
+Environment variables are explicitly bound per field during registration via `v.BindEnv(key, UPPER_KEY)`.
+
+## Advanced Usage
+
+### ResolveWithFlagSet
+
+Use `ResolveWithFlagSet` when you need a custom viper instance or FlagSet:
+
+```go
+v := viper.New()
+fs := pflag.NewFlagSet("myapp", pflag.ExitOnError)
+cfg := &AppConfig{}
+
+if err := configs.ResolveWithFlagSet(v, fs, cfg); err != nil {
+    panic(err)
+}
+```
+
+### Register + Load
+
+For full control (e.g. adding extra viper config sources between registration and loading):
+
+```go
+v := viper.New()
+fs := pflag.CommandLine
+cfg := &AppConfig{}
+
+if err := configs.Register(v, fs, cfg); err != nil {
+    panic(err)
+}
+
+pflag.Parse()
+_ = v.BindPFlags(fs)
+
+if err := configs.Load(v, cfg); err != nil {
+    panic(err)
 }
 ```
 
@@ -85,11 +122,10 @@ type Config struct {
 
 ## Prefix
 
-Both `Register` and `Load` accept an optional prefix to namespace all keys:
+All functions accept an optional prefix to namespace all keys:
 
 ```go
-configs.Register(v, fs, cfg, "myapp")
-configs.Load(v, cfg, "myapp")
+configs.Resolve(cfg, "myapp")
 // key: myapp_host  |  env: MYAPP_HOST
 ```
 

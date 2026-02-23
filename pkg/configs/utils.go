@@ -25,13 +25,13 @@ func checkSupportedKind(k reflect.Kind) error {
 	}
 }
 
-func derefStructPtr(spec any, prefix []string) (val reflect.Value, p string, err error) {
+func derefStructPtr(cfg any, prefix []string) (val reflect.Value, p string, err error) {
 	if len(prefix) > 0 {
 		p = prefix[0]
 	}
-	val = reflect.ValueOf(spec)
+	val = reflect.ValueOf(cfg)
 	if val.Kind() != reflect.Pointer || val.Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("spec must be pointer to struct, got %T: %w", spec, ErrConfig)
+		err = fmt.Errorf("cfg must be pointer to struct, got %T: %w", cfg, ErrConfig)
 		return
 	}
 	val = val.Elem()

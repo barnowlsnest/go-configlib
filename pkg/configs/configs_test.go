@@ -4,11 +4,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/barnowlsnest/go-configlib/pkg/configs"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/barnowlsnest/go-configlib/pkg/configs"
 )
 
 type basicSpec struct {
@@ -62,7 +63,7 @@ func newViperAndFlags() (*configs.Config, *pflag.FlagSet) {
 func TestRegister(t *testing.T) {
 	tests := []struct {
 		name      string
-		spec      any
+		cfg       any
 		prefix    []string
 		wantErr   bool
 		errTarget error
@@ -70,7 +71,7 @@ func TestRegister(t *testing.T) {
 	}{
 		{
 			name: "basic types with defaults",
-			spec: &basicSpec{},
+			cfg:  &basicSpec{},
 			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
 				assert.Equal(t, "localhost", v.GetString("host"))
 				assert.Equal(t, 8080, v.GetInt("port"))
@@ -83,7 +84,7 @@ func TestRegister(t *testing.T) {
 		},
 		{
 			name:   "with prefix",
-			spec:   &basicSpec{},
+			cfg:    &basicSpec{},
 			prefix: []string{"app"},
 			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
 				assert.Equal(t, "localhost", v.GetString("app_host"))
@@ -93,7 +94,7 @@ func TestRegister(t *testing.T) {
 		},
 		{
 			name: "nested struct",
-			spec: &nestedSpec{},
+			cfg:  &nestedSpec{},
 			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
 				assert.Equal(t, "127.0.0.1", v.GetString("db_host"))
 				assert.Equal(t, 5432, v.GetInt("db_port"))
@@ -102,7 +103,7 @@ func TestRegister(t *testing.T) {
 		},
 		{
 			name: "pointer fields",
-			spec: &pointerSpec{},
+			cfg:  &pointerSpec{},
 			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
 				assert.Equal(t, "test", v.GetString("name"))
 				assert.Equal(t, 3000, v.GetInt("port"))
@@ -112,7 +113,7 @@ func TestRegister(t *testing.T) {
 		},
 		{
 			name: "pointer to struct",
-			spec: &pointerStructSpec{},
+			cfg:  &pointerStructSpec{},
 			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
 				assert.Equal(t, "localhost", v.GetString("db_host"))
 				assert.NotNil(t, fs.Lookup("db_host"))
@@ -120,7 +121,7 @@ func TestRegister(t *testing.T) {
 		},
 		{
 			name: "flag skip registers default but no flag",
-			spec: &skipFieldSpec{},
+			cfg:  &skipFieldSpec{},
 			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
 				assert.Equal(t, "app", v.GetString("name"))
 				assert.Equal(t, "s3cret", v.GetString("secret"))
@@ -130,7 +131,7 @@ func TestRegister(t *testing.T) {
 		},
 		{
 			name: "skipped and untagged fields ignored",
-			spec: &skippedNameSpec{},
+			cfg:  &skippedNameSpec{},
 			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
 				assert.NotNil(t, fs.Lookup("included"))
 				assert.Nil(t, fs.Lookup("-"))
@@ -139,26 +140,26 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
-			name:      "non-pointer spec",
-			spec:      basicSpec{},
+			name:      "non-pointer cfg",
+			cfg:       basicSpec{},
 			wantErr:   true,
 			errTarget: configs.ErrConfig,
 		},
 		{
 			name:      "pointer to non-struct",
-			spec:      ptrTo("hello"),
+			cfg:       ptrTo("hello"),
 			wantErr:   true,
 			errTarget: configs.ErrConfig,
 		},
 		{
 			name:      "unsupported field type",
-			spec:      &unsupportedSpec{},
+			cfg:       &unsupportedSpec{},
 			wantErr:   true,
 			errTarget: configs.ErrConfig,
 		},
 		{
 			name:      "invalid default value",
-			spec:      &invalidDefaultSpec{},
+			cfg:       &invalidDefaultSpec{},
 			wantErr:   true,
 			errTarget: configs.ErrConfig,
 		},
@@ -167,7 +168,7 @@ func TestRegister(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v, fs := newViperAndFlags()
-			err := configs.Register(v, fs, tt.spec, tt.prefix...)
+			err := configs.Register(v, fs, tt.cfg, tt.prefix...)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -188,23 +189,23 @@ func TestRegister(t *testing.T) {
 func TestLoad(t *testing.T) {
 	tests := []struct {
 		name      string
-		spec      func() any
+		cfg       func() any
 		prefix    []string
 		setup     func(v *configs.Config)
 		wantErr   bool
 		errTarget error
-		check     func(t *testing.T, spec any)
+		check     func(t *testing.T, cfg any)
 	}{
 		{
 			name: "basic types",
-			spec: func() any { return &basicSpec{} },
+			cfg:  func() any { return &basicSpec{} },
 			setup: func(v *configs.Config) {
 				v.Set("host", "example.com")
 				v.Set("port", 9090)
 				v.Set("tls", false)
 			},
-			check: func(t *testing.T, spec any) {
-				s := spec.(*basicSpec)
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*basicSpec)
 				assert.Equal(t, "example.com", s.Host)
 				assert.Equal(t, 9090, s.Port)
 				assert.Equal(t, false, s.TLS)
@@ -212,15 +213,15 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:   "with prefix",
-			spec:   func() any { return &basicSpec{} },
+			cfg:    func() any { return &basicSpec{} },
 			prefix: []string{"app"},
 			setup: func(v *configs.Config) {
 				v.Set("app_host", "prefixed.com")
 				v.Set("app_port", 7070)
 				v.Set("app_tls", true)
 			},
-			check: func(t *testing.T, spec any) {
-				s := spec.(*basicSpec)
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*basicSpec)
 				assert.Equal(t, "prefixed.com", s.Host)
 				assert.Equal(t, 7070, s.Port)
 				assert.Equal(t, true, s.TLS)
@@ -228,27 +229,27 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name: "nested struct",
-			spec: func() any { return &nestedSpec{} },
+			cfg:  func() any { return &nestedSpec{} },
 			setup: func(v *configs.Config) {
 				v.Set("db_host", "10.0.0.1")
 				v.Set("db_port", 3306)
 			},
-			check: func(t *testing.T, spec any) {
-				s := spec.(*nestedSpec)
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*nestedSpec)
 				assert.Equal(t, "10.0.0.1", s.DB.Host)
 				assert.Equal(t, 3306, s.DB.Port)
 			},
 		},
 		{
 			name: "pointer fields allocated from nil",
-			spec: func() any { return &pointerSpec{} },
+			cfg:  func() any { return &pointerSpec{} },
 			setup: func(v *configs.Config) {
 				v.Set("name", "loaded")
 				v.Set("port", 4000)
 				v.Set("tls", true)
 			},
-			check: func(t *testing.T, spec any) {
-				s := spec.(*pointerSpec)
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*pointerSpec)
 				require.NotNil(t, s.Name)
 				require.NotNil(t, s.Port)
 				require.NotNil(t, s.TLS)
@@ -259,44 +260,44 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name: "pointer to struct allocated from nil",
-			spec: func() any { return &pointerStructSpec{} },
+			cfg:  func() any { return &pointerStructSpec{} },
 			setup: func(v *configs.Config) {
 				v.Set("db_host", "dbhost")
 			},
-			check: func(t *testing.T, spec any) {
-				s := spec.(*pointerStructSpec)
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*pointerStructSpec)
 				require.NotNil(t, s.DB)
 				assert.Equal(t, "dbhost", s.DB.Host)
 			},
 		},
 		{
 			name: "skipped and untagged fields untouched",
-			spec: func() any { return &skippedNameSpec{Skipped: "keep", NoTag: "keep"} },
+			cfg:  func() any { return &skippedNameSpec{Skipped: "keep", NoTag: "keep"} },
 			setup: func(v *configs.Config) {
 				v.Set("included", "yes")
 			},
-			check: func(t *testing.T, spec any) {
-				s := spec.(*skippedNameSpec)
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*skippedNameSpec)
 				assert.Equal(t, "yes", s.Included)
 				assert.Equal(t, "keep", s.Skipped)
 				assert.Equal(t, "keep", s.NoTag)
 			},
 		},
 		{
-			name:      "non-pointer spec",
-			spec:      func() any { return basicSpec{} },
+			name:      "non-pointer cfg",
+			cfg:       func() any { return basicSpec{} },
 			wantErr:   true,
 			errTarget: configs.ErrConfig,
 		},
 		{
 			name:      "pointer to non-struct",
-			spec:      func() any { return ptrTo("hello") },
+			cfg:       func() any { return ptrTo("hello") },
 			wantErr:   true,
 			errTarget: configs.ErrConfig,
 		},
 		{
 			name:      "unsupported field type",
-			spec:      func() any { return &unsupportedSpec{} },
+			cfg:       func() any { return &unsupportedSpec{} },
 			wantErr:   true,
 			errTarget: configs.ErrConfig,
 		},
@@ -305,13 +306,13 @@ func TestLoad(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := viper.New()
-			spec := tt.spec()
+			cfg := tt.cfg()
 
 			if tt.setup != nil {
 				tt.setup(v)
 			}
 
-			err := configs.Load(v, spec, tt.prefix...)
+			err := configs.Load(v, cfg, tt.prefix...)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -323,10 +324,96 @@ func TestLoad(t *testing.T) {
 
 			require.NoError(t, err)
 			if tt.check != nil {
-				tt.check(t, spec)
+				tt.check(t, cfg)
 			}
 		})
 	}
+}
+
+func TestResolveWithFlagSet(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       func() any
+		prefix    []string
+		env       map[string]string
+		wantErr   bool
+		errTarget error
+		check     func(t *testing.T, cfg any)
+	}{
+		{
+			name: "defaults only",
+			cfg:  func() any { return &basicSpec{} },
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*basicSpec)
+				assert.Equal(t, "localhost", s.Host)
+				assert.Equal(t, 8080, s.Port)
+				assert.Equal(t, true, s.TLS)
+			},
+		},
+		{
+			name: "env var override",
+			cfg:  func() any { return &basicSpec{} },
+			env:  map[string]string{"HOST": "envhost", "PORT": "9999"},
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*basicSpec)
+				assert.Equal(t, "envhost", s.Host)
+				assert.Equal(t, 9999, s.Port)
+				assert.Equal(t, true, s.TLS)
+			},
+		},
+		{
+			name:      "non-pointer cfg",
+			cfg:       func() any { return basicSpec{} },
+			wantErr:   true,
+			errTarget: configs.ErrConfig,
+		},
+		{
+			name:      "unsupported field type",
+			cfg:       func() any { return &unsupportedSpec{} },
+			wantErr:   true,
+			errTarget: configs.ErrConfig,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for k, val := range tt.env {
+				t.Setenv(k, val)
+			}
+
+			v := viper.New()
+			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			cfg := tt.cfg()
+
+			err := configs.ResolveWithFlagSet(v, fs, cfg, tt.prefix...)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errTarget != nil {
+					assert.True(t, errors.Is(err, tt.errTarget),
+						"expected error wrapping %v, got: %v", tt.errTarget, err)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.check != nil {
+				tt.check(t, cfg)
+			}
+		})
+	}
+}
+
+func TestResolve(t *testing.T) {
+	cfg := &basicSpec{}
+	v, err := configs.Resolve(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, v)
+
+	assert.Equal(t, "localhost", cfg.Host)
+	assert.Equal(t, 8080, cfg.Port)
+	assert.Equal(t, true, cfg.TLS)
+	assert.Equal(t, "localhost", v.GetString("host"))
 }
 
 func ptrTo[T any](v T) *T {

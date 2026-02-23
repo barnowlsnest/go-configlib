@@ -57,12 +57,12 @@ func main() {
 
 ## Struct Tags
 
-| Tag       | Purpose                                  | Example            |
-|-----------|------------------------------------------|--------------------|
-| `name`    | Key segment (required; `"-"` skips)      | `name:"host"`      |
-| `default` | Default value, parsed per field type     | `default:"8080"`   |
+| Tag       | Purpose                                  | Example               |
+|-----------|------------------------------------------|-----------------------|
+| `name`    | Key segment (required; `"-"` skips)      | `name:"host"`         |
+| `default` | Default value, parsed per field type     | `default:"8080"`      |
 | `usage`   | pflag usage/help string                  | `usage:"server port"` |
-| `flag`    | Set to `"-"` to skip pflag registration  | `flag:"-"`         |
+| `flag`    | Set to `"-"` to skip pflag registration  | `flag:"-"`            |
 
 ## Supported Field Types
 

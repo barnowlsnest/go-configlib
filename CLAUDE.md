@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Go library that provides struct-tag-driven configuration binding on top of [spf13/viper](https://github.com/spf13/viper) and [spf13/pflag](https://github.com/spf13/pflag). Define a config struct with `name`, `default`, `usage`, and `flag` tags, then call `Resolve` (or `Register` + `Load` for advanced control) to wire up pflags, env vars, and defaults automatically.
 
-Module path: `github.com/barnowlsnest/go-configlib`
+Module path: `github.com/barnowlsnest/go-configlib/v2`
 
 ## Build & Test Commands
 
@@ -64,4 +64,4 @@ Nested structs (and pointer-to-struct) use their `name` tag as the prefix for ch
 
 ### Linting
 
-golangci-lint config (`.golangci.yaml`) enforces `funlen` (100 lines / 50 statements), `dupl` (threshold 100), `gocyclo` (max 15), and `lll` (140 chars). Test files are excluded from `dupl`, `funlen`, `goconst`, `gocyclo`, and `gosec`. Import ordering uses `goimports` with local prefix `github.com/barnowlsnest/go-configlib`.
+golangci-lint config (`.golangci.yaml`) enforces `funlen` (100 lines / 50 statements), `dupl` (threshold 100), `gocyclo` (max 15), and `lll` (140 chars). Test files are excluded from `dupl`, `funlen`, `goconst`, `gocyclo`, and `gosec`. Import ordering uses `goimports` with local prefix `github.com/barnowlsnest/go-configlib/v2`.

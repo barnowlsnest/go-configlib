@@ -101,7 +101,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/barnowlsnest/go-configlib
+        - github.com/barnowlsnest/go-configlib/v2
   exclusions:
     generated: lax
     paths:

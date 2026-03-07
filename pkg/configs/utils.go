@@ -5,9 +5,12 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/pflag"
 )
+
+var durationType = reflect.TypeOf(time.Duration(0))
 
 const (
 	tagName    = "name"
@@ -18,7 +21,7 @@ const (
 
 func checkSupportedKind(k reflect.Kind) error {
 	switch k {
-	case reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Bool:
+	case reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Float64, reflect.Bool:
 		return nil
 	default:
 		return fmt.Errorf("unsupported field type %s: %w", k, ErrConfig)
@@ -83,16 +86,29 @@ func registerFields(v *Config, fs *pflag.FlagSet, typ reflect.Type, prefix strin
 			continue
 		}
 
-		switch fieldType.Kind() {
-		case reflect.String:
-			fs.String(key, "", usage)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			fs.Int(key, 0, usage)
-		case reflect.Bool:
-			fs.Bool(key, false, usage)
-		default:
-			return fmt.Errorf("unsupported field type %s: %w", fieldType.Kind(), ErrConfig)
+		if err := registerFlag(fs, fieldType, key, usage); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func registerFlag(fs *pflag.FlagSet, fieldType reflect.Type, key, usage string) error {
+	if fieldType == durationType {
+		fs.Duration(key, 0, usage)
+		return nil
+	}
+	switch fieldType.Kind() {
+	case reflect.String:
+		fs.String(key, "", usage)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		fs.Int(key, 0, usage)
+	case reflect.Float64:
+		fs.Float64(key, 0, usage)
+	case reflect.Bool:
+		fs.Bool(key, false, usage)
+	default:
+		return fmt.Errorf("unsupported field type %s: %w", fieldType.Kind(), ErrConfig)
 	}
 	return nil
 }
@@ -131,11 +147,19 @@ func loadFields(v *Config, val reflect.Value, prefix string) error {
 		}
 
 		key := joinKey(prefix, name)
+
+		if fieldType == durationType {
+			fieldVal.SetInt(int64(v.GetDuration(key)))
+			continue
+		}
+
 		switch fieldType.Kind() {
 		case reflect.String:
 			fieldVal.SetString(v.GetString(key))
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			fieldVal.SetInt(int64(v.GetInt(key)))
+		case reflect.Float64:
+			fieldVal.SetFloat(v.GetFloat64(key))
 		case reflect.Bool:
 			fieldVal.SetBool(v.GetBool(key))
 		default:
@@ -152,8 +176,15 @@ func joinKey(prefix, name string) string {
 	return prefix + "_" + name
 }
 
-func parseDefault(typ reflect.Type, s string) (any, error) {
-	switch typ.Kind() {
+func parseDefault(t reflect.Type, s string) (any, error) {
+	if t == durationType {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return nil, err
+		}
+		return d, nil
+	}
+	switch t.Kind() {
 	case reflect.String:
 		return s, nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -162,6 +193,12 @@ func parseDefault(typ reflect.Type, s string) (any, error) {
 			return nil, err
 		}
 		return int(n), nil
+	case reflect.Float64:
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
 	case reflect.Bool:
 		b, err := strconv.ParseBool(s)
 		if err != nil {
@@ -169,6 +206,6 @@ func parseDefault(typ reflect.Type, s string) (any, error) {
 		}
 		return b, nil
 	default:
-		return s, nil
+		return nil, fmt.Errorf("unsupported field type %s: %w", t.Kind(), ErrConfig)
 	}
 }

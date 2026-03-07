@@ -7,7 +7,7 @@ Define a config struct once — get pflags, environment variables, and defaults 
 ## Install
 
 ```bash
-go get github.com/barnowlsnest/go-configlib
+go get github.com/barnowlsnest/go-configlib/v2
 ```
 
 ## Usage
@@ -18,7 +18,7 @@ package main
 import (
     "fmt"
 
-    "github.com/barnowlsnest/go-configlib/pkg/configs"
+    "github.com/barnowlsnest/go-configlib/v2/pkg/configs"
 )
 
 type AppConfig struct {
@@ -103,9 +103,11 @@ if err := configs.Load(v, cfg); err != nil {
 
 ## Supported Field Types
 
-`string`, `int` (all widths: 8/16/32/64), `bool`.
+`string`, `int` (all widths: 8/16/32/64), `float64`, `bool`, `time.Duration`.
 
-Pointer variants (`*string`, `*int`, `*bool`) are supported — nil pointers are allocated on `Load`.
+Pointer variants (`*string`, `*int`, `*float64`, `*bool`, `*time.Duration`) are supported — nil pointers are allocated on `Load`.
+
+Duration fields accept Go duration strings (e.g. `"2s"`, `"50m"`, `"1h30m"`) in defaults, env vars, and flags.
 
 ## Nested Structs
 

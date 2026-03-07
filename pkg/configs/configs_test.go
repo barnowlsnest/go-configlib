@@ -3,13 +3,14 @@ package configs_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/barnowlsnest/go-configlib/pkg/configs"
+	"github.com/barnowlsnest/go-configlib/v2/pkg/configs"
 )
 
 type basicSpec struct {
@@ -48,12 +49,25 @@ type skippedNameSpec struct {
 	NoTag    string
 }
 
+type float64Spec struct {
+	Rate float64 `name:"rate" default:"3.14" usage:"rate value"`
+}
+
+type durationSpec struct {
+	Timeout time.Duration `name:"timeout" default:"2s" usage:"timeout duration"`
+	Delay   time.Duration `name:"delay" default:"50m" usage:"delay duration"`
+}
+
 type unsupportedSpec struct {
-	Data float64 `name:"data"`
+	Data complex128 `name:"data"`
 }
 
 type invalidDefaultSpec struct {
 	Port int `name:"port" default:"notanumber"`
+}
+
+type invalidDurationDefaultSpec struct {
+	Timeout time.Duration `name:"timeout" default:"notaduration"`
 }
 
 func newViperAndFlags() (*configs.Config, *pflag.FlagSet) {
@@ -140,6 +154,24 @@ func TestRegister(t *testing.T) {
 			},
 		},
 		{
+			name: "float64 with default",
+			cfg:  &float64Spec{},
+			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
+				assert.InDelta(t, 3.14, v.GetFloat64("rate"), 0.001)
+				assert.NotNil(t, fs.Lookup("rate"))
+			},
+		},
+		{
+			name: "duration with defaults",
+			cfg:  &durationSpec{},
+			check: func(t *testing.T, v *configs.Config, fs *pflag.FlagSet) {
+				assert.Equal(t, 2*time.Second, v.GetDuration("timeout"))
+				assert.Equal(t, 50*time.Minute, v.GetDuration("delay"))
+				assert.NotNil(t, fs.Lookup("timeout"))
+				assert.NotNil(t, fs.Lookup("delay"))
+			},
+		},
+		{
 			name:      "non-pointer cfg",
 			cfg:       basicSpec{},
 			wantErr:   true,
@@ -160,6 +192,12 @@ func TestRegister(t *testing.T) {
 		{
 			name:      "invalid default value",
 			cfg:       &invalidDefaultSpec{},
+			wantErr:   true,
+			errTarget: configs.ErrConfig,
+		},
+		{
+			name:      "invalid duration default",
+			cfg:       &invalidDurationDefaultSpec{},
 			wantErr:   true,
 			errTarget: configs.ErrConfig,
 		},
@@ -271,6 +309,30 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "float64 field",
+			cfg:  func() any { return &float64Spec{} },
+			setup: func(v *configs.Config) {
+				v.Set("rate", 2.718)
+			},
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*float64Spec)
+				assert.InDelta(t, 2.718, s.Rate, 0.001)
+			},
+		},
+		{
+			name: "duration fields",
+			cfg:  func() any { return &durationSpec{} },
+			setup: func(v *configs.Config) {
+				v.Set("timeout", 5*time.Second)
+				v.Set("delay", 30*time.Minute)
+			},
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*durationSpec)
+				assert.Equal(t, 5*time.Second, s.Timeout)
+				assert.Equal(t, 30*time.Minute, s.Delay)
+			},
+		},
+		{
 			name: "skipped and untagged fields untouched",
 			cfg:  func() any { return &skippedNameSpec{Skipped: "keep", NoTag: "keep"} },
 			setup: func(v *configs.Config) {
@@ -362,6 +424,32 @@ func TestResolveWithFlagSet(t *testing.T) {
 			},
 		},
 		{
+			name: "float64 defaults",
+			cfg:  func() any { return &float64Spec{} },
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*float64Spec)
+				assert.InDelta(t, 3.14, s.Rate, 0.001)
+			},
+		},
+		{
+			name: "duration defaults",
+			cfg:  func() any { return &durationSpec{} },
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*durationSpec)
+				assert.Equal(t, 2*time.Second, s.Timeout)
+				assert.Equal(t, 50*time.Minute, s.Delay)
+			},
+		},
+		{
+			name: "duration env var override",
+			cfg:  func() any { return &durationSpec{} },
+			env:  map[string]string{"TIMEOUT": "10s"},
+			check: func(t *testing.T, cfg any) {
+				s := cfg.(*durationSpec)
+				assert.Equal(t, 10*time.Second, s.Timeout)
+			},
+		},
+		{
 			name:      "non-pointer cfg",
 			cfg:       func() any { return basicSpec{} },
 			wantErr:   true,
@@ -414,6 +502,63 @@ func TestResolve(t *testing.T) {
 	assert.Equal(t, 8080, cfg.Port)
 	assert.Equal(t, true, cfg.TLS)
 	assert.Equal(t, "localhost", v.GetString("host"))
+}
+
+func TestDurationEnvAndFlag(t *testing.T) {
+	t.Run("env var string parsed as duration", func(t *testing.T) {
+		t.Setenv("TIMEOUT", "5s")
+		t.Setenv("DELAY", "30m")
+
+		v := viper.New()
+		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		cfg := &durationSpec{}
+
+		err := configs.ResolveWithFlagSet(v, fs, cfg)
+		require.NoError(t, err)
+		assert.Equal(t, 5*time.Second, cfg.Timeout)
+		assert.Equal(t, 30*time.Minute, cfg.Delay)
+	})
+
+	t.Run("flag string parsed as duration", func(t *testing.T) {
+		v := viper.New()
+		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		cfg := &durationSpec{}
+
+		err := configs.Register(v, fs, cfg)
+		require.NoError(t, err)
+
+		err = fs.Parse([]string{"--timeout=15s", "--delay=1h"})
+		require.NoError(t, err)
+
+		err = v.BindPFlags(fs)
+		require.NoError(t, err)
+
+		err = configs.Load(v, cfg)
+		require.NoError(t, err)
+		assert.Equal(t, 15*time.Second, cfg.Timeout)
+		assert.Equal(t, 1*time.Hour, cfg.Delay)
+	})
+
+	t.Run("flag overrides env var", func(t *testing.T) {
+		t.Setenv("TIMEOUT", "5s")
+
+		v := viper.New()
+		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		cfg := &durationSpec{}
+
+		err := configs.Register(v, fs, cfg)
+		require.NoError(t, err)
+
+		err = fs.Parse([]string{"--timeout=20s"})
+		require.NoError(t, err)
+
+		err = v.BindPFlags(fs)
+		require.NoError(t, err)
+
+		err = configs.Load(v, cfg)
+		require.NoError(t, err)
+		assert.Equal(t, 20*time.Second, cfg.Timeout)
+	})
 }
 
 func ptrTo[T any](v T) *T {

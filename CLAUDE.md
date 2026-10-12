@@ -13,14 +13,16 @@ Module path: `github.com/barnowlsnest/go-configlib/v2`
 This project uses [Task](https://taskfile.dev) (v3) as its task runner.
 
 ```bash
-task go:build              # build all packages
-task go:test               # run tests with coverage + benchmarks
-task go:vet                # static analysis
-task go:fmt                # format all Go files
-task go:lint               # run golangci-lint (config: .golangci.yaml)
-task go:mod:tidy           # tidy dependencies
-task sanity                # run all checks (fmt, lint, build, vet, test)
+task go-build              # build all packages
+task go-test               # run tests with coverage + benchmarks
+task go-vet                # static analysis
+task go-fmt                # format all Go files
+task go-lint               # run golangci-lint --fix (config: .golangci.yaml)
+task go-mod                # tidy dependencies
+task sanity                # run all checks sequentially (mod, fmt, lint, build, vet, test)
 ```
+
+CI (`.github/workflows/build.yml`) calls `task go-build` and `task go-test`, so keep those task names stable.
 
 To run a single test directly:
 ```bash
@@ -40,6 +42,7 @@ All library code lives in a single package: `pkg/configs/`.
   - `derefStructPtr` — shared validation for `Register`/`Load`: extracts prefix, validates cfg is pointer-to-struct, returns dereferenced `reflect.Value`.
   - `checkSupportedKind` — single source of truth for which `reflect.Kind` values are supported.
   - `registerFields` / `loadFields` — recursively walk struct fields. Pointer types are unwrapped (nil pointers allocated in `loadFields`).
+  - `registerFlag` — registers a single pflag for a leaf field (flag name = full key, e.g. `db_host`).
   - `joinKey` — builds `prefix_name` keys.
   - `parseDefault` — converts `default` tag strings to typed values.
 - **errors.go** — Sentinel error `ErrConfig`. All returned errors wrap it for `errors.Is` checking.
@@ -60,7 +63,7 @@ Nested structs (and pointer-to-struct) use their `name` tag as the prefix for ch
 
 ### Supported field types
 
-`string`, `int` (all widths), `bool`, and pointer variants (`*string`, `*int`, `*bool`). Adding a new type requires updating `checkSupportedKind`, `registerFields` (pflag registration switch), `loadFields` (viper getter switch), and `parseDefault`.
+`string`, `int` (all widths), `float64`, `bool`, `time.Duration`, and their pointer variants. `time.Duration` is detected via `durationType` before the kind switch (its kind is `Int64`). Adding a new type requires updating `checkSupportedKind`, `registerFlag` (pflag registration switch), `loadFields` (viper getter switch), and `parseDefault`.
 
 ### Linting
 
